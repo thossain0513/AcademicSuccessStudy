@@ -1,0 +1,118 @@
+---
+title: "Lab 2"
+author: "Toufiq Hossain, Nikita Chauhan, Adithi Suresh"
+date: "2023-12-11"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The Effects of Mental Health on Academic Success
+
+Here, we process our data:
+
+```{r}
+library(dplyr)
+library(ggplot2)
+options(width = 100)  # Adjust the width as per your screen size
+final_data <- read.csv('final_data.csv')
+final_data <- final_data[final_data$final_grade > 0, ] #We only want people who scored above 0
+weight_columns <- function(dataframe, columns, weights) { # Don't need to use this function anymore
+  # Check if the lengths of the columns and weights are equal
+  if (length(columns) != length(weights)) {
+    stop("The number of columns and weights must be the same")
+  }
+  
+  # Loop through each column and apply the weight
+  for (i in seq_along(columns)) {
+    column_name <- columns[i]
+    weight <- weights[i]
+    dataframe[[column_name]] <- dataframe[[column_name]] * weight
+  }
+  
+  return(dataframe)
+}
+final_data <- final_data %>% 
+  mutate(final_grade = (final_grade * 5))
+final_data <- final_data %>% 
+  mutate(tot_alc = Dalc * Walc) # penalizes poor alcoholic consumption
+final_data <- final_data %>% 
+  mutate(socioeconomic = paid + internet + (Medu*Fedu)) # encapsulates a score for socioeconomic status
+final_data <- final_data %>% 
+  mutate(mental_health = famrel + health + activities) # variable of interest
+
+#Now, we split the data
+indices <- sample(1:nrow(final_data), size = 0.2 * nrow(final_data))
+trainData <- final_data[indices, ]
+testData <- final_data[-indices, ]
+```
+
+```{r}
+trainData$romantic <- as.logical(trainData$romantic)
+ggplot(trainData, aes(x = mental_health, y = final_grade)) +
+  geom_point(aes(color = romantic)) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, aes(color = romantic)) +  # Removed fill aesthetic
+  scale_color_manual(values = c("FALSE" = "red", "TRUE" = "blue"),
+                     labels = c("Not in a Relationship", "In a Relationship")) +
+  labs(title = "Scatter Plot Of Student Grades Based on Romantic Relationship",
+       x = "Mental Health Score",
+       y = "Final Grade",
+       color = "Relationship") +  # Legend title for color
+  theme_minimal()
+```
+
+##Comparison of Models
+
+```{r pressure, echo=FALSE}
+library(ggplot2)
+model <- lm("final_grade ~ studytime + higher + failures + socioeconomic", data = testData)
+summary(model)
+```
+
+```{r}
+model2 <- lm("final_grade ~ studytime + higher + failures + socioeconomic + mental_health", data = testData)
+summary(model2)
+```
+
+```{r}
+model3 <- lm("final_grade ~ studytime + higher + failures + socioeconomic + mental_health + tot_alc", data = testData)
+summary(model3)
+```
+
+Comparison of Models
+
+```{r}
+library(stargazer)
+library(IRdisplay)
+st <- stargazer(model, model2, model3, type = "html", out = NULL)
+htmltools::HTML(st)
+```
+
+LIMITATIONS
+
+```{r}
+testData$test_actual <- testData$final_grade
+testData$test_predict <- predict(model3)
+fit <- lm(test_actual ~ test_predict, testData)
+plot(fit)
+
+# Displaying summary of the regression model
+summary(fit)
+
+
+#DATA VISUALIZATIONS
+#Scatter Plot of Well-being Score vs. Math Grades
+ggplot(testData, aes(x = mental_health, y = final_grade)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "red") +
+  labs(title = "Well-being Score vs. Grades", x = "Well-being Score", y = "Final Grade") +
+  theme_minimal()
+
+
+
+```
